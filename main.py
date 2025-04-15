@@ -26,112 +26,112 @@ def get_minecraft_bounds():
 monitor = get_minecraft_bounds()
 screen_width, screen_height = monitor['width'], monitor['height']
 
-# Параметри для перевірки зміни висоти
+# Параметры для проверки изменения высоты
 previous_position = None
-displacement_threshold = 20  # Поріг зміщення по висоті (пикселів)
-missing_threshold = 1 # Кількість пропусків поплавка перед правим кліком
+displacement_threshold = 20  # Порог смещения по высоте (пикселей)
+missing_threshold = 1 # Количество пропусков поплавка перед правым кликом
 missing_count = 1
 
-# Завантаження зображень поплавків один раз
+# Загрузка изображений поплавков один раз
 float_images = []
 for filename in os.listdir("float_examples"):
     if filename.endswith('.png') or filename.endswith('.jpg'):
         float_image = cv2.imread(os.path.join("float_examples", filename), cv2.IMREAD_GRAYSCALE)
         float_images.append((filename, float_image))
 
-# Функція для кліків миші
+# Функция для кликов мыши
 def right_click():
     pyautogui.click(button='right')
     time.sleep(0.3)
     pyautogui.click(button='right')
     time.sleep(1)
 
-# Функція для обробки екрана
+# Функция для обработки экрана
 def process_screen(frame_data):
     global previous_position, missing_count
 
-    print("Починаємо через 5 секунд...")
+    print("Начинаем через 5 секунд...")
     time.sleep(5)
 
     with mss.mss() as sct:
         while True:
-            # Захоплюємо поточний кадр екрана
+            # Захватываем текущий кадр экрана
             screenshot = sct.grab(monitor)
 
-            # Перетворюємо його в масив NumPy
+            # Преобразуем его в массив NumPy
             img = np.array(screenshot)
 
-            # Перетворюємо кадр в відтінки сірого
+            # Переводим кадр в оттенки серого
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             gray = cv2.resize(gray, (0, 0), fx=0.5, fy=0.5)
             gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
-            # Змінні для відслідковування найкращої знахідки
+            # Переменные для отслеживания лучшего совпадения
             best_match = None
             best_match_value = -1
 
-            # Шукаємо шаблони (поплавки) на екрані
+            # Ищем шаблоны (поплавки) на экране
             for filename, float_image in float_images:
-                # Використовуємо шаблонне порівняння
+                # Используем шаблонное сравнение
                 float_image_resized = cv2.resize(float_image, (0, 0), fx=0.5, fy=0.5)
                 result = cv2.matchTemplate(gray, float_image_resized, cv2.TM_CCOEFF_NORMED)
 
-                # Знаходимо максимальний коефіцієнт
+                # Находим максимальный коэффициент совпадения
                 min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
-                # Якщо знайдений кращий збіг, зберігаємо координати
+                # Если найдено лучшее совпадение, сохраняем координаты
                 if max_val > best_match_value:
                     best_match_value = max_val
                     best_match = max_loc
 
-            # Якщо знайдений хороший збіг, відображаємо його на екрані
+            # Если найдено хорошее совпадение, отображаем его на экране
             if best_match:
                 top_left = best_match
                 bottom_right = (top_left[0] + float_image.shape[1], top_left[1] + float_image.shape[0])
 
-                # Відображаємо результат
+                # Отображаем результат
                 cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
 
-                # Виводимо координати
-                print(f"Поплавок знайдено на координатах: {top_left}")
+                # Выводим координаты
+                print(f"Поплавок найден на координатах: {top_left}")
 
-                # Якщо поплавок змістився вниз на певну кількість пікселів, робимо правий клік
+                # Если поплавок сместился вниз на определённое количество пикселей — делаем правый клик
                 if previous_position:
                     delta_y = top_left[1] - previous_position[1]
                     if delta_y > displacement_threshold:
-                        print("Поплавок сильно змістився вниз!")
+                        print("Поплавок сильно сместился вниз!")
                         right_click()
 
-                # Оновлюємо попереднє положення
+                # Обновляем предыдущее положение
                 previous_position = top_left
-                missing_count = 0  # Скидаємо лічильник, якщо поплавок знайдено
+                missing_count = 0  # Сброс счётчика, если поплавок найден
 
             else:
-                # Якщо поплавок не знайдений, збільшуємо лічильник відсутності
+                # Если поплавок не найден — увеличиваем счётчик отсутствия
                 missing_count += 1
 
-                # Якщо поплавок не знайдений кілька разів, робимо правий клік
+                # Если поплавок не найден несколько раз — делаем правый клик
                 if missing_count >= missing_threshold:
-                    print("Поплавок не знайдений кілька разів, робимо правий клік!")
+                    print("Поплавок не найден несколько раз, делаем правый клик!")
                     right_click()
-                    missing_count = 0  # Скидаємо лічильник
+                    missing_count = 0  # Сброс счётчика
 
-            # Зменшуємо розмір зображення тільки для відображення результатів
+            # Уменьшаем размер изображения только для отображения результатов
             small_img = cv2.resize(img, (screen_width // 2, screen_height // 2))
 
-            # Передаємо зображення для відображення в головний потік
+            # Передаём изображение для отображения в главный поток
             frame_data['frame'] = small_img
-            time.sleep(0.03)  # Обмеження до ~30 FPS
+            time.sleep(0.03)  # Ограничение до ~30 FPS
 
-# Головний потік програми
+# Главный поток программы
 if __name__ == "__main__":
     frame_data = {}
 
-    # Запускаємо функцію обробки екрана в окремому потоці
+    # Запускаем функцию обработки экрана в отдельном потоке
     process_thread = threading.Thread(target=process_screen, args=(frame_data,))
     process_thread.daemon = True
     process_thread.start()
 
-    # Головний цикл програми
+    # Главный цикл программы
     while True:
-        time.sleep(1)  # Зменшене використання CPU
+        time.sleep(1)  # Меньшее использование CPU
